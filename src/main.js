@@ -24,42 +24,16 @@ document.addEventListener('DOMContentLoaded', function() {
   renderer.setPixelRatio(window.devicePixelRatio);
   document.body.appendChild(renderer.domElement);
 
-   //const controls = new OrbitControls(camera, renderer.domElement);
-
-  // Lighting
-  // const dLFront = new THREE.DirectionalLight(0xffffff, 1);
-  // dLFront.position.set(0, 0, 10);
-  // scene.add(dLFront);
-
-  // const dLLeft = new THREE.DirectionalLight(0xffffff, 1);
-  // dLLeft.position.set(10, 0, 0);
-  // scene.add(dLLeft);
-
-
-  // const light = new THREE.AmbientLight( 0x404040 );
-  // scene.add(light);
-
-  // const dLFront = new THREE.DirectionalLight(0xffffff, 1);
-  // dLFront.position.set(0, 10, 10);
-  // scene.add(dLFront);
-
-  // const dLFront = new THREE.DirectionalLight(0xffffff, 1);
-  // dLFront.position.set(0, 10, 10);
-  // scene.add(dLFront);
-
-
-
+  //light
   const ambientLight = new THREE.AmbientLight(0xffffff, 2); // Higher intensity for brighter illumination
   scene.add(ambientLight);
   
-  // Optionally, add hemisphere light for subtle shading
   const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2); // Sky and ground light
   scene.add(hemisphereLight);
 
 
 
   //Variables
-
   const boxSize = 5;
   let targetPosition = new THREE.Vector3();
   let currentLookAt = new THREE.Vector3(0, 0, 0);  // Camera focus point
@@ -67,24 +41,32 @@ document.addEventListener('DOMContentLoaded', function() {
   let hoveredCube = null;
   let structure = 0;
   let relations = 1;
-  let explore = true;
-  let statusList = [[]];
+  let themes = 2;
+
+  let mode = structure;
+  let explore = false;
+
+
   let boundings = [];
   let clickedCube = null;
-
-
-
-
-    let mode = structure;
-    let currentGroup = null;
+  let currentGroup = null;
 
     //buttons
-    const reverseButton = document.getElementById('reverseButton');
-    const exploreButton = document.getElementById('explore');
     const structureButton = document.getElementById("structure");
     const relationsButton = document.getElementById("relations");
-    const clickedCubeInfoContainer = document.getElementById('clicked-cube-info');
 
+
+    //colours
+    const statusColorMap = {};
+    let nextPreferredColorIndex = 0;
+
+    const preferredColors = [
+      '#e06666', 
+      '#f3b48b', 
+      '#c6e2ff', 
+      '#e5cac6',
+      '#d9d2e9'  
+    ];
 
     const white = 0xFFFFFF; 
     const red = 0xFF0000;
@@ -95,12 +77,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   
 
-// bigCube
-  const bigCubeSize = 150; // Size of the big cube
-  const bigCubeGeometry = new THREE.BoxGeometry(bigCubeSize, bigCubeSize, bigCubeSize);
-  const bigCubeMaterial = new THREE.MeshBasicMaterial({ color: 0x555555, wireframe: true, transparent: true, opacity: 1 });
-  const bigCube = new THREE.Mesh(bigCubeGeometry, bigCubeMaterial);
-  scene.add(bigCube);  
+  // bigCube
+    const bigCubeSize = 150; // Size of the big cube
+    const bigCubeGeometry = new THREE.BoxGeometry(bigCubeSize, bigCubeSize, bigCubeSize);
+    const bigCubeMaterial = new THREE.MeshBasicMaterial({ color: 0x555555, wireframe: true, transparent: true, opacity: 1 });
+    const bigCube = new THREE.Mesh(bigCubeGeometry, bigCubeMaterial);
+    scene.add(bigCube);  
 
 
 
@@ -109,28 +91,22 @@ document.addEventListener('DOMContentLoaded', function() {
 //createBoxes
 function createBox(name, description, status) {
 
-let colour = white;
+  if (!statusColorMap[status]) {
+    statusColorMap[status] = generateRandomColor();
+  }
 
-  // let colour = generateRandomColor();
-  // while (statusList.some(entry => entry[1] === colour)) {
-  //   colour = generateRandomColor(); // Keep generating until a unique color is found
-  // }
-  // if (!statusList.some(entry => entry[0] === status)) {
-  //   statusList.push([status, colour]);
-  // }
+  const colour = statusColorMap[status];
 
 
+
+  // let colour = white;
 
    const geometry = new THREE.BoxGeometry(boxSize, boxSize, 5);
    const material = new THREE.MeshStandardMaterial({ color: colour, transparent: true,opacity: 1, wireframe: true });
    const cube = new THREE.Mesh(geometry, material);
 
 
-  //cube.userData.group = group;
-
   cube.userData.group = null;
-
-
   cube.userData.children = [];
   cube.userData.parents = [];
   cube.userData.name = name;
@@ -141,7 +117,6 @@ let colour = white;
   cube.userData.outline = null;
   cube.userData.boundBox = null;
   cube.userData.colour = colour;
-  // scene.add(cube);
 
   boxes.push(cube);
   return cube;
@@ -150,17 +125,12 @@ let colour = white;
 
 
 
-
-
-
-
-
 // enhanceBox
 function enhanceBox(name, parentes = [], relations = [[]]) {
   let cube = boxes.find(box => box === name);
 
+  //text
   const loader = new FontLoader();
-
   loader.load('src/courierPrime.json', function (font) {
     // Create text geometry
     const textGeometry = new TextGeometry(cube.userData.name, {
@@ -175,107 +145,71 @@ function enhanceBox(name, parentes = [], relations = [[]]) {
     cube.material.transparent = false;
     cube.material.wireframe = false; 
     cube.geometry.center();
-    
-    const textBoundingBox = new THREE.Box3().setFromObject(cube); // Calculate bounding box for the text
+  
+    //boundingBox
+    const textBoundingBox = new THREE.Box3().setFromObject(cube);
     const size = new THREE.Vector3();
-    textBoundingBox.getSize(size); // Get dimensions of the bounding box
-
-
+    textBoundingBox.getSize(size); 
     const boundingGeometry = new THREE.BoxGeometry(size.x *1.5, size.y *1.5, size.z *1.5);
     const boundingMaterial = new THREE.MeshBasicMaterial({
       transparent: true,
       wireframe: true,
       opacity: 0,
-    }); // Fully transparent by default
+    }); 
     const boundBox = new THREE.Mesh(boundingGeometry, boundingMaterial);
 
-    boundBox.position.copy(cube.position); // Match position with the cube
-    boundBox.userData = { isBoundingBox: true, parentCube: cube }; // Attach reference to the original cube
+    boundBox.position.copy(cube.position); 
+    boundBox.userData = { isBoundingBox: true, parentCube: cube };
   
     scene.add(boundBox);
     boundings.push(boundBox);
-    
     cube.userData.boundBox = boundBox;
 
   });
 
-
-  // if(parentReferences.length < 1){
-  //   cube.userData.parents = [cA];
-  // }else{
-  //   cube.userData.parents = parentReferences;
-  // }
-
-
-  let parentReferences = [];
-
-  parentes.forEach(parent => {
-    if (parent) {
-      parentReferences.push(parent);
-    }
-  })
-    
-
+  //parents
+    let parentReferences = [];
+    parentes.forEach(parent => {
+      if (parent) {
+        parentReferences.push(parent);
+      }
+    })
     cube.userData.parents = parentReferences;
 
-    //group
+
+  //group
     const parentReferencesString = parentReferences.map(parent => parent?.userData?.name || 'extraElement').join(', ');
     cube.userData.group = parentReferencesString;
 
 
-
-
-    //z-levels
-    //let zLevel = 0;
-    // if (parentReferences === null) {
-    //   zLevel = 0;
-
-    // } else if (parentReferences.length > 0) {
-    //   const parent = parentReferences[0]
-    //   if(parent === null){
-    //     zLevel = 0;
-    //   }
-    // else{
-    //   zLevel = parent.userData.level - 25; // Place 25 units behind the parent
-    // }
-    // }
-
-    // cube.userData.level = zLevel;
-
-
-
-// Calculate z-level for the current cube
-let zLevel = 0;
-
-if (parentReferences && parentReferences.length > 0) {
-    // Find the maximum level among all parents
-    const maxParentLevel = Math.max(
-        ...parentReferences.map(parent => (parent?.userData?.level ?? 0))
-    );
-    // Set the child's level to one step lower than the highest parent
-    zLevel = maxParentLevel + 25;
-}
-
-cube.userData.level = zLevel;
+//z-level
+  let zLevel = 0;
+  if (parentReferences && parentReferences.length > 0) {
+      // Find the maximum level among all parents
+      const maxParentLevel = Math.max(
+          ...parentReferences.map(parent => (parent?.userData?.level ?? 0))
+      );
+      zLevel = maxParentLevel + 25;
+  }
+  cube.userData.level = zLevel;
 
 
 
 
-
+//children
     parentReferences = parentReferences ? (Array.isArray(parentReferences) ? parentReferences : [parentReferences]) : [];
-  
-    // Safely add this cube to each parent
-    parentReferences.forEach(parent => {
+      parentReferences.forEach(parent => {
       if (parent) {
         if (!parent.userData.children) {
-          parent.userData.children = [];  // Initialize children array if it doesn't exist
+          parent.userData.children = [];
         }
         parent.userData.children.push(cube);
-        parent.add(cube);  // Attach to the parent in the scene graph
+        parent.add(cube); 
       }
     });
 
 
+//relations
     if (Array.isArray(relations)) {
       relations.forEach(relation => {
           if (!Array.isArray(relation) || relation.length !== 2) {
@@ -290,13 +224,12 @@ cube.userData.level = zLevel;
       });
   }
 
-    scene.add(cube);
 
-    return cube;
+  //adding
+  scene.add(cube);
+  return cube;
     
 }
-
-
 
 
 
@@ -305,278 +238,35 @@ cube.userData.level = zLevel;
   const raycaster = new THREE.Raycaster();
   raycaster.params.Mesh.threshold = 1.5; // Adjust threshold (default is 0)
   const mouse = new THREE.Vector2();
-
-  window.addEventListener('click', onClick);
   window.addEventListener('mousemove', onMouseMove, false);
-  function onClick(event) {
-    if(mode === structure && explore){
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-  
-    //const visibleBoxes = boxes.filter(box => box.visible);
-    //const intersects = raycaster.intersectObjects(visibleBoxes);
 
-
-    const intersects = raycaster.intersectObjects(boundings);
-
-    if (intersects.length > 0) {
-      let clickedObject = intersects[0].object;
-  
-      if (clickedObject.userData.isBoundingBox) {
-        clickedObject = clickedObject.userData.parentCube;
-      }
-
-
-    if(clickedObject.visible){
-
-      updateCurrentGroup(clickedObject.userData.group)
-      clickedCube = clickedObject;
-      exploreButton.innerText = `Explore ${clickedObject.userData.name || 'Unnamed Cube'}`;
-      //clickedCubeInfoContainer.innerText = `${clickedObject.userData.name || 'Unnamed Cube'}, ${clickedObject.userData.group}`;
-
-
-      const children = clickedObject.userData.children;
-
-      let groupBoxes =[];
-      children.forEach(box => {
-          if (!groupBoxes.includes(box.userData.group)) {
-            groupBoxes.push(box.userData.group);
-          }
-        });
-
-      if(children.length === 0) return;
-
-      if (groupBoxes.length  === 1) {
-        currentGroup = children[0].userData.group;
-        navigateToChildren(currentGroup, clickedObject);
-        return;
-      }
-      else{
-        showChildGroupsOverlay(children, clickedObject);
-      }
-    }
-}
-   }else{
-    
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-  
-    //const visibleBoxes = boxes.filter(box => box.visible);
-    //const intersects = raycaster.intersectObjects(visibleBoxes);
-
-
-    const intersects = raycaster.intersectObjects(boundings);
-
-    if (intersects.length > 0) {
-      let clickedObject = intersects[0].object;
-  
-      if (clickedObject.userData.isBoundingBox) {
-        clickedObject = clickedObject.userData.parentCube;
-      }
-
-
-    if(clickedObject.visible){
-      updateCurrentGroup(clickedObject.userData.group)
-      clickedCube = clickedObject;
-      exploreButton.innerText = `Explore ${clickedObject.userData.name || 'Unnamed Cube'}`;
-      //clickedCubeInfoContainer.innerText = `${clickedObject.userData.name || 'Unnamed Cube'}, ${clickedObject.userData.group}`;
-
-    }
-   }
-  }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
 
 
 //changeMode
-
 // structure button
 document.getElementById('structure').addEventListener('click', () => {
-    explore = false;
     mode = structure;
-
     structurePos();
-    reverseButton.style.display = 'none';
-
-    //exploreButton.style.display = 'block';
-    const rect = structureButton.getBoundingClientRect();
-    exploreButton.style.top = `${rect.bottom + 10}px`; // 10px gap below the active button
-    exploreButton.style.left = `${rect.left + rect.width / 2 }px`; //- exploreButton.offsetWidth / 2
-
-
-
-    manNavigation();
     changeMode()
-
-    let hiddenBoxes = boxes.filter(box => !box.visible);
-    let structureBoxes = hiddenBoxes.filter(box => (box.userData.children.length > 0 || box.userData.parents.length > 0))
-    structureBoxes.forEach(cube => easeInBoxes(cube));
-
-    let notstructureBoxes = boxes.filter(box => (box.userData.children.length < 1 && box.userData.parents.length < 1))
-    notstructureBoxes.forEach(cube =>  easeOutBoxes(cube));
-    //easeOutBoxes(cube)
-
-
-//hellohello
-
   });
 
 
 // relations button
 document.getElementById('relations').addEventListener('click', () => {
-  relationsPos();
-  explore = false;
   mode = relations;
-  reverseButton.style.display = 'none';
-
-  const rect = relationsButton.getBoundingClientRect();
-  exploreButton.style.top = `${rect.bottom + 10}px`; // 10px gap below the active button
-  exploreButton.style.left = `${rect.left + rect.width / 2 }px`; //- exploreButton.offsetWidth / 2
-
-
-  boxes.forEach(box => easeInBoxes(box));
-  boxes.filter(box => box.userData.relations.length < 1 ).forEach(box => box.visible = false); //&& box.userData.group !== "extraElement"
-  manNavigation();
+  relationsPos();
   changeMode()
   });
 
 
-
-
-
-// explore structure
-  document.getElementById('explore').addEventListener('click', () => {
-    
-    if(mode === structure){
-      structureExplorePos();
-      setTimeout(() => {
-        explorationView()
-        boxes.forEach(box => box.visible = false);
-
-        let strucExploreBoxes = boxes.filter(box => box.userData.group === currentGroup && (box.userData.children.length > 0 || box.userData.parents.length > 0));
-
-        strucExploreBoxes.forEach(box => box.visible = true); //(box.userData.group !== "extraElement"))
-      
-      
-      
-      
-      
-      }, 1000);
-
-    setTimeout(() => {
-      
-    explore = true;
-    reverseButton.style.display = 'block';
-
-    // boxes.filter(box => box.userData.group === !currentGroup).forEach(box => easeOutBoxes(box));
-
-  }, 1500);
-} else if (mode === relations){
-  relationsExplorePos();
-  explorationView()
-
-
-  explore = true;
-}
-
-   });
-
-
-
-
-
-
-
-
-
-
-
-
-
-//reverse
-document.getElementById('reverseButton').addEventListener('click', () => {
-  if(mode === structure && explore){
-  let parentGroups = [];
-  
-  // Gather unique parent groups
-  let groupBoxes = boxes.filter(box => box.userData.group === currentGroup);
-  groupBoxes.forEach(box => {
-    box.userData.parents.forEach(parent => {
-      if(parent !== null){
-      if (!parentGroups.includes(parent.userData.group)) {
-        parentGroups.push(parent.userData.group);
-      }
-    } else return;
-    });
+// relations button
+document.getElementById('themes').addEventListener('click', () => {
+  themesPos();
+  mode = themes;
+  changeMode()
   });
 
-
-
-  // Handle no parents case
-  if (parentGroups.length === 0) {
-    alert("No parent groups found.");
-    return;
-  }
-
-  // If only one parent exists, navigate directly
-  if (parentGroups.length === 1) {
-    currentGroup = parentGroups[0];
-    navigateToParent(currentGroup);
-    return;
-  }
-
-  // If multiple parents, present selection to the user
-  const existingOverlay = document.querySelector('.overlay');
-  if (existingOverlay) {
-    existingOverlay.remove();
-  }
-  
-  const overlay = document.createElement('div');
-  overlay.classList.add('overlay');
-
-  const groupSelection = document.createElement('div');
-  groupSelection.classList.add('group-selection');
-  overlay.appendChild(groupSelection);
-
-
-  parentGroups.forEach(group => {
-    const groupButton = document.createElement('button');
-    groupButton.textContent = `Parents: ${group}`;  // Display the group number or name
-    groupButton.addEventListener('click', () => {
-      event.stopPropagation();
-      closeOverlay(overlay);
-      updateCurrentGroup(group);  // Pass the selected group
-      navigateToParent(currentGroup);
-    });
-    groupSelection.appendChild(groupButton);
-  });
-
-  document.body.appendChild(overlay);
-  }
-
-});
-
-
-
-
+  //hellohello
 
 
 
@@ -616,22 +306,7 @@ function onMouseMove(event) {
 
 function onHover(cube) {
   if (cube && cube.visible) {
-
-   if(mode === structure && explore){
-
-      if (cube.userData.children.length > 0){
-       createOutline(cube);
-       cube.material.color.set(black);
-      }
-      
-      const textContainer = document.getElementById('description-container');
-      if (textContainer) {
-        textContainer.innerText = cube.userData.name + ': ' + cube.userData.description; // Set the text content
-        textContainer.style.display = 'block'; // Ensure it's visible
-      }
-   }
-
-   if (mode === structure && !explore) {
+   if (mode === structure) {
      createOutline(cube);
      cube.material.color.set(black);
      cube.userData.children?.forEach(child => {
@@ -648,10 +323,19 @@ function onHover(cube) {
          createLine(cube, parent);
        }
    });
+
+   const textContainer = document.getElementById('description-container');
+   if (textContainer) {
+    textContainer.innerText = cube.userData.name + ': ' + cube.userData.description; // Set the text content
+
+     textContainer.style.display = 'block'; // Ensure it's visible
    }
 
 
-   if(mode === relations && !explore) {
+   }
+
+
+   if(mode === relations) {
      createOutline(cube);
      cube.material.color.set(black);
     cube.userData.relations?.forEach(([entity, description]) => {
@@ -661,70 +345,31 @@ function onHover(cube) {
         createLine(cube, entity);
       }
     });
-  }
-  if(mode === relations && explore){
-    createOutline(cube);
-    cube.material.color.set(black);
-    cube.userData.relations?.forEach(([entity, description]) => {
-      if (entity) {
-      createOutline(entity);
-      entity.material.color.set(black);
-      if(entity.visible && cube.visible){
-        createLine(cube, entity);
-      }
-    }
+    const textContainer = document.getElementById('description-container');
 
-
-    // Display the description as an HTML element
-      const textContainer = document.getElementById('description-container');
-      // if (textContainer) {
-      //   textContainer.innerText = description; // Set the text content
-      //   textContainer.style.display = 'block'; // Ensure it's visible
-      // }
-
-
-      if (textContainer) {
-        textContainer.innerHTML = ''; // Clear existing content
-        cube.userData.relations?.forEach(([entity, description]) => {
-          if(entity.visible){
-          createOutline(entity);
-          if (entity.visible && cube.visible) {
-            createLine(cube, entity);
-          }
-    
-          // Append each description as a separate line
-          const descriptionElement = document.createElement('div');
-          descriptionElement.innerText = entity.userData.name + ': ' + description;
-          textContainer.appendChild(descriptionElement);
+    if (textContainer) {
+      textContainer.innerHTML = ''; // Clear existing content
+      cube.userData.relations?.forEach(([entity, description]) => {
+        if(entity.visible){
+        createOutline(entity);
+        if (entity.visible && cube.visible) {
+          createLine(cube, entity);
         }
-        });
-    
-        textContainer.style.display = 'block'; // Ensure it's visible
-      }
-
-    })
-
   
+        // Append each description as a separate line
+        const descriptionElement = document.createElement('div');
+        descriptionElement.innerText = cube.userData.name + ', ' + entity.userData.name + ': ' + description;
+
+      
+        textContainer.appendChild(descriptionElement);
+      }
+      });
+  
+      textContainer.style.display = 'block'; // Ensure it's visible
+    }
   }
-
-
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -743,15 +388,28 @@ function addGridHelper(scene) {
   const gridHelper = new THREE.GridHelper(50, 10);
   scene.add(gridHelper);
 }
-//const axesHelper = new THREE.AxesHelper( 500 ); scene.add( axesHelper );
-//addGridHelper(scene);
+const axesHelper = new THREE.AxesHelper( 500 ); scene.add( axesHelper );
+addGridHelper(scene);
 
 
 
 function generateRandomColor() {
-  // Generate a random hex color
-  return '#' + Math.floor(Math.random() * 16777215).toString(16);
+  // // Generate a random hex color
+  // return '#' + Math.floor(Math.random() * 16777215).toString(16);
+
+  let colour = null;
+  // Assign preferred color if available
+  if (nextPreferredColorIndex < preferredColors.length) {
+    colour = preferredColors[nextPreferredColorIndex];
+    nextPreferredColorIndex++;
+  } else {
+    // Fallback to generating a random color if preferred list is exhausted
+    colour = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+  }
+
+  return colour;
 }
+
 
 
 
@@ -770,6 +428,10 @@ function manNavigation() {
     if (mode === relations && !explore) {
       camera.position.x -= event.deltaY * 0.1; 
     }
+
+    if (mode === themes && !explore) {
+      camera.position.z -= event.deltaY * 0.1; 
+    }
   });
   
   canvas.addEventListener('mousedown', (event) => {
@@ -780,6 +442,11 @@ function manNavigation() {
     }
 
     if (mode === relations && !explore) {
+      isDragging = true;
+      prevMousePosition.x = event.clientX;
+      prevMousePosition.y = event.clientY;
+    }
+    if (mode === themes && !explore) {
       isDragging = true;
       prevMousePosition.x = event.clientX;
       prevMousePosition.y = event.clientY;
@@ -813,18 +480,38 @@ function manNavigation() {
       prevMousePosition.x = event.clientX;
       prevMousePosition.y = event.clientY;
     }
+
+    if (mode === themes && !explore && isDragging) {
+      const deltaX = (event.clientX - prevMousePosition.x) * 0.1; // Adjust drag sensitivity
+      const deltaY = (event.clientY - prevMousePosition.y) * 0.1;
+  
+      // Modify camera's x and z positions based on drag
+      camera.position.x += deltaX;
+      camera.position.y += deltaY;
+  
+      // Update previous mouse position
+      prevMousePosition.x = event.clientX;
+      prevMousePosition.y = event.clientY;
+    }
   });
   
   canvas.addEventListener('mouseup', () => {
     if (mode === structure && !explore) isDragging = false;
 
     if (mode === relations && !explore) isDragging = false;
+
+    if (mode === themes && !explore) isDragging = false;
+
   });
   
   canvas.addEventListener('mouseleave', () => {
     if (mode === structure && !explore) isDragging = false;
 
     if (mode === relations && !explore) isDragging = false;
+
+
+    if (mode === themes && !explore) isDragging = false;
+
   });
 };
 
@@ -834,16 +521,44 @@ function changeMode() {
   const rot = new THREE.Euler();
 
 
-  if (mode === structure && !explore) {
+  if (mode === structure) {
     targetPosition.z += bigCubeSize;
     rot.set(0, 0, 0); // 90 degrees in radians
+
+    let hiddenBoxes = boxes.filter(box => !box.visible);
+    let structureBoxes = hiddenBoxes.filter(box => (box.userData.children.length > 0 || box.userData.parents.length > 0))
+    structureBoxes.forEach(cube => easeInBoxes(cube));
+
+    let notstructureBoxes = boxes.filter(box => (box.userData.children.length < 1 && box.userData.parents.length < 1))
+    notstructureBoxes.forEach(cube =>  easeOutBoxes(cube));
+
+    manNavigation();
+
+
   }
 
 
-  if (mode === relations && !explore) {
+  if (mode === relations) {
     targetPosition.x -= bigCubeSize;
 
     rot.set(Math.PI / 2, -Math.PI / 2, Math.PI / 2); // 90 degrees in radians
+
+    boxes.forEach(box => easeInBoxes(box));
+    boxes.filter(box => box.userData.relations.length < 1 ).forEach(box => box.visible = false); //&& box.userData.group !== "extraElement"
+
+
+    manNavigation();
+  }
+
+  if (mode === themes) {
+
+    targetPosition.z -= bigCubeSize;
+    rot.set(0, Math.PI, 0);
+
+    boxes.forEach(box => easeInBoxes(box));
+    boxes.filter(box => box.userData.status === "helperElement" ).forEach(box => box.visible = false); //&& box.userData.group !== "extraElement"
+    manNavigation();
+
   }
 
 
@@ -864,84 +579,6 @@ function changeMode() {
     ease: "power2.inOut"
   });
 }
-
-
-
-function explorationView() {
-  if(mode === structure){
-  const group = boxes.filter(child => child.userData.group === currentGroup);
-  if (group.length === 0) return;
-  
-
-
-  const boundingBox = new THREE.Box3();
-  group.forEach(cube => boundingBox.expandByObject(cube));
-  const center = new THREE.Vector3();
-  boundingBox.getCenter(center);
-  const size = boundingBox.getSize(new THREE.Vector3()).length();
-
-  const targetPosition = new THREE.Vector3();
-  const rot = new THREE.Euler();
-
-  const distance = size / (2 * Math.tan((camera.fov * Math.PI) / 360));
-  targetPosition.set(center.x, center.y, center.z + distance + 5);
-
-
-
-  if (mode === structure && explore) {
-
-    // targetPosition.set(currentGroup.position.x, currentGroup.position.y, currentGroup.position.z + 25);
-    rot.set(0, 0, 0);
-  }
-
-
-  gsap.to(camera.position, {
-    duration: 1, // Transition duration in seconds
-    x: targetPosition.x,
-    y: targetPosition.y,
-    z: targetPosition.z,
-    ease: "power2.inOut" // Smooth easing function
-  });
-
-  gsap.to(camera.rotation, {
-    duration: 1,
-    x: rot.x,
-    y: rot.y,
-    z: rot.z,
-    ease: "power2.inOut"
-  });
-
-
-
-
-
-} else if (mode === relations) {
-setTimeout(() => {
-  let relat = boxes.filter(child => child.visible === true);
-  if (relat.length === 0) return;
-
-  const boundingBox = new THREE.Box3();
-  relat.forEach(cube => boundingBox.expandByObject(cube));
-  const center = new THREE.Vector3();
-  boundingBox.getCenter(center);
-  const size = boundingBox.getSize(new THREE.Vector3()).length();
-  const distance = size / (2 * Math.tan((camera.fov * Math.PI) / 360));
-  let targetPos = new THREE.Vector3(center.x - distance, center.y-10, center.z);
-
-  //Smoothly transition the camera position
-  gsap.to(camera.position, {
-    duration: 1, // Transition duration in seconds
-    x: targetPos.x,
-    y: targetPos.y,
-    z: targetPos.z,
-    ease: "power2.inOut", // Smooth easing function
-  });
-}, 1000)
-}
-
-}
-
-
 
 
 
@@ -1171,14 +808,14 @@ function removeHover(cube) {
     cube.userData.children?.forEach(child => {
       if(child){
         removeOutline(child)
-        child.material.color.set(cube.userData.colour);
+        child.material.color.set(child.userData.colour);
         removeLines(child);
       }
   });
     cube.userData.parents?.forEach(parent => {
       if(parent){
         removeOutline(parent)
-        parent.material.color.set(cube.userData.colour);
+        parent.material.color.set(parent.userData.colour);
         removeLines(parent);
       }
   });
@@ -1186,7 +823,7 @@ function removeHover(cube) {
   cube.userData.relations?.forEach(([entity, description]) => {
     if (entity) {
       removeOutline(entity);
-      entity.material.color.set(cube.userData.colour);
+      entity.material.color.set(entity.userData.colour);
       removeLines(entity);
     }
   });
@@ -1406,7 +1043,7 @@ setTimeout(() => {
 
   const groupSpacing = 50;    // Spacing between groups
   const cloudSpread = 40;     // Spread of cubes within each group
-  const minDistance = 20;     // Minimum distance between cubes to avoid overlap
+  const minDistance = 30;     // Minimum distance between cubes to avoid overlap
   const maxAttempts = 50;     // Max retries to find a non-overlapping position   // Assuming the big cube has a size of 100 units
 
   // Group cubes by their `group` value
@@ -1542,6 +1179,160 @@ function relationsExplorePos() {
     groupCenterObject.visible = true;
     relatedObjects.forEach(cube => cube.visible = true);
 }
+
+
+
+
+
+
+
+
+
+function themesPos() {
+  setTimeout(() => {
+    // Rotate cubes to face the correct direction
+    let themesBoxes = boxes.filter(box => box.visible === true);
+
+    boxes.forEach(cube => {
+      cube.rotation.set(0, -Math.PI, 0);
+      cube.userData.boundBox.rotation.set(0, -(Math.PI / 2), 0);
+    });
+
+    const statusSpacing = 100;   // Spacing between status clusters
+    const boxSpread = 80;       // Spread of boxes within each cluster
+    const minDistance = 50;     // Minimum distance between boxes
+    const maxAttempts = 100;     // Max retries to avoid overlap
+
+    // Group cubes by status
+    const statusClusters = {};
+    themesBoxes.forEach(cube => {
+      const status = cube.userData.status || "default";
+      if (!statusClusters[status]) statusClusters[status] = [];
+      statusClusters[status].push(cube);
+    });
+
+    const statusKeys = Object.keys(statusClusters);
+    const numCols = Math.ceil(Math.sqrt(statusKeys.length));
+    const numRows = Math.ceil(statusKeys.length / numCols);
+
+    const totalWidth = (numCols - 1) * statusSpacing;
+    const totalHeight = (numRows - 1) * statusSpacing;
+    const centerXOffset = -totalWidth / 2;
+    const centerYOffset = totalHeight / 2;
+    const faceZ = -bigCubeSize / 2;
+
+    statusKeys.forEach((statusKey, index) => {
+      const colIndex = index % numCols;
+      const rowIndex = Math.floor(index / numCols);
+      const groupX = centerXOffset + colIndex * statusSpacing;
+      const groupY = centerYOffset - rowIndex * statusSpacing;
+
+      const cubesInStatus = statusClusters[statusKey];
+      const placedPositions = [];
+
+      cubesInStatus.forEach(cube => {
+        let validPosition = false;
+        let randomX, randomY, randomZ;
+        let attempts = 0;
+
+        while (!validPosition && attempts < maxAttempts) {
+          randomX = groupX + (1.2*(Math.random() - 0.9)) * boxSpread;
+          randomY = groupY + (1.2*(Math.random() - 0.9)) * boxSpread;
+          randomZ = faceZ;
+
+          validPosition = placedPositions.every(pos => {
+            const dx = pos.x - randomX;
+            const dy = pos.y - randomY;
+            const dz = pos.z - randomZ;
+            return Math.sqrt(dx * dx + dy * dy + dz * dz) >= minDistance;
+          });
+
+          attempts++;
+        }
+
+        // Animate box placement
+        gsap.to(cube.position, {
+          duration: 1,
+          x: randomX,
+          y: randomY,
+          z: randomZ,
+          ease: "power2.inOut",
+          onUpdate: () => cube.userData.boundBox.position.copy(cube.position)
+        });
+
+        placedPositions.push({ x: randomX, y: randomY, z: randomZ });
+      });
+    });
+  }, 500);
+}
+
+
+
+
+
+
+
+// function themesPos() {
+//   setTimeout(() => {
+//     // Rotate cubes to face the correct direction
+//     boxes.forEach(cube => {
+//       cube.rotation.set(0, -Math.PI, 0);
+//       cube.userData.boundBox.rotation.set(0, -(Math.PI / 2), 0);
+//     });
+
+//     const statusSpacing = 100;  // Space between status clusters
+//     const cubeSize = 10;        // Space between individual cubes in a cluster
+//     const faceZ = -bigCubeSize / 2; // Fixed Z-position on the cube face
+
+//     // Group cubes by status
+//     const statusClusters = {};
+//     boxes.forEach(cube => {
+//       const status = cube.userData.status || "default";
+//       if (!statusClusters[status]) statusClusters[status] = [];
+//       statusClusters[status].push(cube);
+//     });
+
+//     const statusKeys = Object.keys(statusClusters);
+//     const numCols = Math.ceil(Math.sqrt(statusKeys.length)); // Grid columns for status clusters
+//     const numRows = Math.ceil(statusKeys.length / numCols);
+
+//     const totalWidth = (numCols - 1) * statusSpacing;
+//     const totalHeight = (numRows - 1) * statusSpacing;
+//     const centerXOffset = -totalWidth / 2;
+//     const centerYOffset = totalHeight / 2;
+
+//     statusKeys.forEach((statusKey, index) => {
+//       const colIndex = index % numCols;
+//       const rowIndex = Math.floor(index / numCols);
+//       const groupX = centerXOffset + colIndex * statusSpacing;
+//       const groupY = centerYOffset - rowIndex * statusSpacing;
+
+//       const cubesInStatus = statusClusters[statusKey];
+//       const gridCols = Math.ceil(Math.sqrt(cubesInStatus.length)); // Grid columns for individual cubes
+//       const gridRows = Math.ceil(cubesInStatus.length / gridCols);
+
+//       cubesInStatus.forEach((cube, cubeIndex) => {
+//         const cubeColIndex = cubeIndex % gridCols;
+//         const cubeRowIndex = Math.floor(cubeIndex / gridCols);
+
+//         const cubeX = groupX + cubeColIndex * cubeSize - (gridCols * cubeSize) / 2;
+//         const cubeY = groupY - cubeRowIndex * cubeSize + (gridRows * cubeSize) / 2;
+//         const cubeZ = faceZ;
+
+//         // Animate cube to grid position
+//         gsap.to(cube.position, {
+//           duration: 1,
+//           x: cubeX,
+//           y: cubeY,
+//           z: cubeZ,
+//           ease: "power2.inOut",
+//           onUpdate: () => cube.userData.boundBox.position.copy(cube.position)
+//         });
+//       });
+//     });
+//   }, 500);
+// }
+
 
 
 
@@ -2046,7 +1837,8 @@ enhanceBox(asclepius, [null],[[]]);
 
 setTimeout(() => {
   
-  structureExplorePos();
+  structurePos();
+  changeMode();
 
 }, 1000)
 
