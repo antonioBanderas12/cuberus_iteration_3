@@ -73,6 +73,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const blue = 0x0000FF;
     const green = 0x00FF00;
     const black = 0x000000;
+    const hoverColor = 0xF7E0C0
 
 
   
@@ -117,6 +118,7 @@ function createBox(name, description, status) {
   cube.userData.outline = null;
   cube.userData.boundBox = null;
   cube.userData.colour = colour;
+  cube.userData.statusline = null;
 
   boxes.push(cube);
   return cube;
@@ -338,6 +340,8 @@ function onHover(cube) {
    if(mode === relations) {
      createOutline(cube);
      cube.material.color.set(black);
+
+
     cube.userData.relations?.forEach(([entity, description]) => {
       if (entity) {
         createOutline(entity);
@@ -367,6 +371,50 @@ function onHover(cube) {
   
       textContainer.style.display = 'block'; // Ensure it's visible
     }
+  }
+
+  if (mode === themes) {
+    //createOutline(cube);
+    //cube.material.color.set(black);
+
+    const boundingBox = new THREE.Box3();
+    
+      // Expand bounding box to encompass all cubes with the same status
+      boxes.filter(child => child.userData.status === cube.userData.status)
+           .forEach(state => boundingBox.expandByObject(state));
+    
+      // Calculate size and center of the bounding box
+      const center = new THREE.Vector3();
+      const size = new THREE.Vector3();
+      boundingBox.getCenter(center);
+      boundingBox.getSize(size);
+    
+      // Create a visual representation of the bounding box using LineSegments
+      const boxGeometry = new THREE.BoxGeometry(size.x * 1.4, size.y * 1.4, size.z * 1.4);
+      const edges = new THREE.EdgesGeometry(boxGeometry);
+      const lineMaterial = new THREE.LineBasicMaterial({ hoverColor, linewidth: 4 });
+    
+      const statusOutline = new THREE.LineSegments(edges, lineMaterial);
+      statusOutline.position.copy(center);
+      
+      // Add the outline to the scene
+      scene.add(statusOutline);
+      cube.userData.statusline = statusOutline;
+      
+      
+      const textContainer = document.getElementById('description-container');
+
+      if (textContainer) {
+        textContainer.innerHTML = '';      
+
+        const descriptionElement = document.createElement('div');
+          descriptionElement.innerText = cube.userData.status;
+  
+        
+          textContainer.appendChild(descriptionElement);
+          textContainer.style.display = 'block'; // Ensure it's visible
+      }
+      
   }
   }
 }
@@ -762,8 +810,12 @@ function createOutline(cube, color = 0xF7E0C0) {
 
     if(mode === structure){
       factor = size.x
-    }else if(mode === relations){
+    }
+    else if(mode === relations){
       factor = size.z
+    }
+    else if(mode === themes){
+      factor = size.x
     }
     const outlineGeometry = new THREE.CircleGeometry(factor / 1.8);
 
@@ -785,6 +837,9 @@ function createOutline(cube, color = 0xF7E0C0) {
     }
     else if(mode === relations){
       outlineMesh.rotation.set(0, - (Math.PI / 2), 0);
+    }
+    else if(mode === themes){
+      outlineMesh.rotation.set(0, - Math.PI, 0);
     }
   }
 }
@@ -833,6 +888,12 @@ function removeHover(cube) {
     if (textContainer) {
       textContainer.style.display = 'none';
       textContainer.innerText = ''; // Clear the content
+    }
+
+
+    if (cube && cube.userData.statusline) {
+      scene.remove(cube.userData.statusline);
+      cube.userData.statusline = null;
     }
   
   }
@@ -1188,6 +1249,86 @@ function relationsExplorePos() {
 
 
 
+// function themesPos() {
+//   setTimeout(() => {
+//     // Rotate cubes to face the correct direction
+//     let themesBoxes = boxes.filter(box => box.visible === true);
+
+//     boxes.forEach(cube => {
+//       cube.rotation.set(0, -Math.PI, 0);
+//       cube.userData.boundBox.rotation.set(0, -(Math.PI / 2), 0);
+//     });
+
+//     const statusSpacing = 100;   // Spacing between status clusters
+//     const boxSpread = 80;       // Spread of boxes within each cluster
+//     const minDistance = 50;     // Minimum distance between boxes
+//     const maxAttempts = 100;     // Max retries to avoid overlap
+
+//     // Group cubes by status
+//     const statusClusters = {};
+//     themesBoxes.forEach(cube => {
+//       const status = cube.userData.status || "default";
+//       if (!statusClusters[status]) statusClusters[status] = [];
+//       statusClusters[status].push(cube);
+//     });
+
+//     const statusKeys = Object.keys(statusClusters);
+//     const numCols = Math.ceil(Math.sqrt(statusKeys.length));
+//     const numRows = Math.ceil(statusKeys.length / numCols);
+
+//     const totalWidth = (numCols - 1) * statusSpacing;
+//     const totalHeight = (numRows - 1) * statusSpacing;
+//     const centerXOffset = -totalWidth / 2;
+//     const centerYOffset = totalHeight / 2;
+//     const faceZ = -bigCubeSize / 2;
+
+//     statusKeys.forEach((statusKey, index) => {
+//       const colIndex = index % numCols;
+//       const rowIndex = Math.floor(index / numCols);
+//       const groupX = centerXOffset + colIndex * statusSpacing;
+//       const groupY = centerYOffset - rowIndex * statusSpacing;
+
+//       const cubesInStatus = statusClusters[statusKey];
+//       const placedPositions = [];
+
+//       cubesInStatus.forEach(cube => {
+//         let validPosition = false;
+//         let randomX, randomY, randomZ;
+//         let attempts = 0;
+
+//         while (!validPosition && attempts < maxAttempts) {
+//           randomX = groupX + (1.2*(Math.random() - 0.9)) * boxSpread;
+//           randomY = groupY + (1.2*(Math.random() - 0.9)) * boxSpread;
+//           randomZ = faceZ;
+
+//           validPosition = placedPositions.every(pos => {
+//             const dx = pos.x - randomX;
+//             const dy = pos.y - randomY;
+//             const dz = pos.z - randomZ;
+//             return Math.sqrt(dx * dx + dy * dy + dz * dz) >= minDistance;
+//           });
+
+//           attempts++;
+//         }
+
+//         // Animate box placement
+//         gsap.to(cube.position, {
+//           duration: 1,
+//           x: randomX,
+//           y: randomY,
+//           z: randomZ,
+//           ease: "power2.inOut",
+//           onUpdate: () => cube.userData.boundBox.position.copy(cube.position)
+//         });
+
+//         placedPositions.push({ x: randomX, y: randomY, z: randomZ });
+//       });
+//     });
+//   }, 500);
+// }
+
+
+
 function themesPos() {
   setTimeout(() => {
     // Rotate cubes to face the correct direction
@@ -1195,13 +1336,15 @@ function themesPos() {
 
     boxes.forEach(cube => {
       cube.rotation.set(0, -Math.PI, 0);
-      cube.userData.boundBox.rotation.set(0, -(Math.PI / 2), 0);
+      cube.userData.boundBox.rotation.set(0, -Math.PI , 0);
     });
 
-    const statusSpacing = 100;   // Spacing between status clusters
-    const boxSpread = 80;       // Spread of boxes within each cluster
-    const minDistance = 50;     // Minimum distance between boxes
-    const maxAttempts = 100;     // Max retries to avoid overlap
+    // Base constants
+    const baseStatusSpacing = 120;
+    const baseBoxSpread = 60;
+    const minDistance = 60;
+    const maxAttempts = 100;
+    const faceZ = -bigCubeSize / 2;
 
     // Group cubes by status
     const statusClusters = {};
@@ -1211,15 +1354,20 @@ function themesPos() {
       statusClusters[status].push(cube);
     });
 
+    // Compute layout grid dimensions
     const statusKeys = Object.keys(statusClusters);
     const numCols = Math.ceil(Math.sqrt(statusKeys.length));
     const numRows = Math.ceil(statusKeys.length / numCols);
+
+    // Compute total width and height for centering
+    const clusterSizes = statusKeys.map(status => statusClusters[status].length);
+    const maxClusterSize = Math.max(...clusterSizes);
+    const statusSpacing = Math.max(baseStatusSpacing, maxClusterSize * 0.6); // *10
 
     const totalWidth = (numCols - 1) * statusSpacing;
     const totalHeight = (numRows - 1) * statusSpacing;
     const centerXOffset = -totalWidth / 2;
     const centerYOffset = totalHeight / 2;
-    const faceZ = -bigCubeSize / 2;
 
     statusKeys.forEach((statusKey, index) => {
       const colIndex = index % numCols;
@@ -1236,8 +1384,8 @@ function themesPos() {
         let attempts = 0;
 
         while (!validPosition && attempts < maxAttempts) {
-          randomX = groupX + (1.2*(Math.random() - 0.9)) * boxSpread;
-          randomY = groupY + (1.2*(Math.random() - 0.9)) * boxSpread;
+          randomX = groupX + (Math.random() - 0.5) * baseBoxSpread;
+          randomY = groupY + (Math.random() - 0.5) * baseBoxSpread;
           randomZ = faceZ;
 
           validPosition = placedPositions.every(pos => {
@@ -1257,7 +1405,11 @@ function themesPos() {
           y: randomY,
           z: randomZ,
           ease: "power2.inOut",
-          onUpdate: () => cube.userData.boundBox.position.copy(cube.position)
+          onUpdate: () => {
+            boxes.forEach(box => {
+             box.userData.boundBox.position.copy(box.position);
+            })   
+          } //cube.userData.boundBox.position.copy(cube.position)
         });
 
         placedPositions.push({ x: randomX, y: randomY, z: randomZ });
@@ -1550,6 +1702,82 @@ const ares = createBox(
 );
 
 
+//news
+
+const typhon = createBox(
+  "Typhon",
+  "A monstrous giant and one of the deadliest creatures in Greek mythology. Known as the father of many fearsome monsters.",
+  "Giant"
+);
+
+const echidna = createBox(
+  "Echidna",
+  "Half-woman, half-snake creature known as the 'Mother of Monsters.' She bore many of the most terrifying creatures in Greek mythology.",
+  "Giant"
+);
+
+
+const hydra = createBox(
+  "Hydra",
+  "Serpent-like water monster with multiple heads; when one is cut off, two grow in its place. Defeated by Heracles.",
+  "Beast"
+);
+
+const chimera = createBox(
+  "Chimera",
+  "Fire-breathing creature with the body of a lion, a goat's head protruding from its back, and a serpent as a tail.",
+  "Beast"
+);
+
+const hecate = createBox(
+  "Hecate",
+  "Goddess of magic, witchcraft, ghosts, and necromancy. Often depicted holding two torches and associated with crossroads.",
+  "Immortal"
+);
+
+// const selene = createBox(
+//   "Selene",
+//   "Goddess of the Moon, often depicted driving a chariot across the night sky.",
+//   "Immortal"
+// );
+
+const eos = createBox(
+  "Eos",
+  "Goddess of the dawn who opens the gates of heaven each morning for the sun to rise.",
+  "Immortal"
+);
+
+// const hyperion = createBox(
+//   "Hyperion",
+//   "One of the twelve Titans and personification of heavenly light. Father of Helios, Selene, and Eos.",
+//   "Immortal"
+// );
+
+const helios = createBox(
+  "Helios",
+  "Titan god of the Sun, who drives his chariot across the sky each day.",
+  "Immortal"
+);
+
+const nemesis = createBox(
+  "Nemesis",
+  "Goddess of retribution and revenge, punishing those who succumb to hubris and arrogance.",
+  "Immortal"
+);
+
+//new helper
+const narcissus = createBox(
+  "narcissus",
+  "",
+  "helperElement"
+);
+
+
+
+
+
+
+
 // helpers
 
 
@@ -1810,6 +2038,50 @@ enhanceBox(hector, [null],[[]]);
 enhanceBox(agamemnon, [null],[[]]);
 enhanceBox(daphne, [null],[[]]);
 enhanceBox(asclepius, [null],[[]]);
+
+//new helpers
+enhanceBox(narcissus, [null],[[]]);
+enhanceBox(hydra, [null],[[]]);
+enhanceBox(helios, [null],[[]]);
+enhanceBox(eos, [null],[[]]);
+// enhanceBox(hyperion, [null],[[]]);
+enhanceBox(chimera, [null],[[]]);
+
+
+//news
+
+// Enhanced Relationships
+enhanceBox(typhon, [gaia], [
+  [echidna, "Partnered with Echidna to sire many fearsome monsters, including Cerberus and the Chimera."],
+  [zeus, "Fought Zeus in a fierce battle for control of the cosmos, ultimately defeated and trapped beneath Mount Etna."]
+]);
+
+enhanceBox(echidna, [typhon], [
+  [cerberus, "Mothered Cerberus, the multi-headed guardian of the underworld."],
+  [chimera, "Gave birth to Chimera, a terrifying hybrid creature."]
+]);
+
+enhanceBox(hecate, [zeus], [
+  //[selene, "Often collaborated with Selene during rituals under the moon."],
+  [persephone, "Assisted Persephone during her time in the underworld."]
+]);
+
+// enhanceBox(selene, [hyperion], [
+//   [helios, "Sibling relationship with Helios, balancing the celestial cycle of day and night."],
+//   [eos, "Collaborates with Eos to maintain the transition between night and dawn."]
+// ]);
+
+enhanceBox(nemesis, [zeus], [
+  [ares, "Worked alongside Ares to punish hubris and enforce divine justice."],
+  [narcissus, "Punished Narcissus for his vanity by causing him to fall in love with his reflection."]
+]);
+
+
+
+
+
+
+
 
 //console.log(paris)
 //let notstructureBoxes = boxes.filter(box => (box.userData.children.length < 0 && box.userData.parents.length < 0))
